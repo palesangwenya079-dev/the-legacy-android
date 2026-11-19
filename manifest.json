@@ -1,0 +1,11 @@
+{
+  "name": "The Legacy Stock Manager",
+  "short_name": "The Legacy",
+  "description": "Stock and Customer Management",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f1eb",
+  "theme_color": "#172b25",
+  "orientation": "portrait"
+}
