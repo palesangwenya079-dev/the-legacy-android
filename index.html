@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Legacy</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:#f4f1eb;
+ color:#252525;
+}
+header{
+ background:#172b25;
+ color:white;
+ padding:25px 18px;
+}
+header h1{margin:0;font-size:27px}
+header p{margin:7px 0 0;color:#d5c49b}
+main{padding:15px;max-width:650px;margin:auto}
+.cards{
+ display:grid;
+ grid-template-columns:1fr 1fr;
+ gap:10px;
+}
+.card{
+ background:white;
+ padding:16px;
+ border-radius:12px;
+ box-shadow:0 2px 7px #0001;
+}
+.card small{color:#777}
+.card strong{
+ display:block;
+ font-size:19px;
+ margin-top:8px;
+ color:#173c30;
+}
+section{
+ background:white;
+ margin-top:16px;
+ padding:17px;
+ border-radius:12px;
+}
+h2{font-size:19px;margin-top:0}
+input,select,button{
+ width:100%;
+ padding:12px;
+ margin:6px 0;
+ border:1px solid #ddd;
+ border-radius:8px;
+ font-size:15px;
+}
+button{
+ background:#173c30;
+ color:white;
+ border:0;
+ font-weight:bold;
+ cursor:pointer;
+}
+button.secondary{background:#b08b49}
+button.danger{background:#a33}
+.item{
+ padding:12px 0;
+ border-bottom:1px solid #eee;
+}
+.item:last-child{border:0}
+.item strong{display:block}
+.muted{color:#777;font-size:13px}
+nav{
+ display:grid;
+ grid-template-columns:repeat(3,1fr);
+ gap:6px;
+ margin-top:15px;
+}
+nav button{font-size:12px;padding:12px 3px}
+.hidden{display:none}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>THE LEGACY</h1>
+<p>Stock & Customer Management</p>
+</header>
+
+<main>
+
+<div class="cards">
+ <div class="card">
+  <small>Total Products</small>
+  <strong id="products">0</strong>
+ </div>
+ <div class="card">
+  <small>Total Stock Quantity</small>
+  <strong id="quantity">0</strong>
+ </div>
+ <div class="card">
+  <small>Stock Value (Cost)</small>
+  <strong id="stockValue">R0.00</strong>
+ </div>
+ <div class="card">
+  <small>Money Owed</small>
+  <strong id="owed">R0.00</strong>
+ </div>
+</div>
+
+<nav>
+<button onclick="show('inventory')">My Stock</button>
+<button onclick="show('issue')">Give Stock</button>
+<button onclick="show('payment')">Payments</button>
+</nav>
+
+<section id="inventory">
+<h2>📦 Add New Product</h2>
+
+<input id="pname" placeholder="Product name">
+<input id="pqty" type="number" placeholder="Quantity">
+<input id="pcost" type="number" step="0.01" placeholder="Buying price per item (R)">
+<input id="psell" type="number" step="0.01" placeholder="Selling price per item (R)">
+
+<button onclick="addProduct()">Add Product</button>
+
+<h2>My Inventory</h2>
+<div id="stockList"></div>
+
+</section>
+
+<section id="issue" class="hidden">
+<h2>📤 Stock Taken / Customer Credit</h2>
+
+<input id="customer" placeholder="Customer's full name">
+
+<select id="productSelect"></select>
+
+<input id="issueQty" type="number" placeholder="Quantity taken">
+
+<p class="muted">The customer's debt will be calculated using the selling price.</p>
+
+<button onclick="issueStock()">Record Stock Taken</button>
+</section>
+
+<section id="payment" class="hidden">
+<h2>💰 Record Customer Payment</h2>
+
+<input id="payCustomer" placeholder="Customer's full name">
+
+<input id="payAmount" type="number" step="0.01" placeholder="Amount paid (R)">
+
+<button onclick="makePayment()">Record Payment</button>
+
+<h2>Customer Accounts</h2>
+<div id="customerList"></div>
+</section>
+
+<section>
+<h2>📋 Recent Transactions</h2>
+<div id="history"></div>
+</section>
+
+</main>
+
+<script>
+
+let stock = JSON.parse(localStorage.getItem("legacyStock") || "[]");
+let customers = JSON.parse(localStorage.getItem("legacyCustomers") || "{}");
+let history = JSON.parse(localStorage.getItem("legacyHistory") || "[]");
+
+function money(n){
+ return "R" + Number(n).toFixed(2);
+}
+
+function save(){
+ localStorage.setItem("legacyStock",JSON.stringify(stock));
+ localStorage.setItem("legacyCustomers",JSON.stringify(customers));
+ localStorage.setItem("legacyHistory",JSON.stringify(history));
+ render();
+}
+
+function addProduct(){
+ let name=document.getElementById("pname").value.trim();
+ let qty=Number(document.getElementById("pqty").value);
+ let cost=Number(document.getElementById("pcost").value);
+ let sell=Number(document.getElementById("psell").value);
+
+ if(!name || qty<0 || !Number.isFinite(qty) ||
+ cost<0 || sell<=0 ||
+ document.getElementById("pqty").value==="" ||
+ document.getElementById("pcost").value==="" ||
+ document.getElementById("psell").value===""){
+  alert("Please enter valid product details.");
+  return;
+ }
+
+ let existing=stock.find(p=>p.name.toLowerCase()===name.toLowerCase());
+
+ if(existing){
+  alert("This product already exists. Add stock through the stock update option in the next version.");
+  return;
+ }
+
+ stock.push({id:Date.now(),name,qty,cost,sell});
+
+ history.unshift(new Date().toLocaleString()+" — Added "+qty+" "+name);
+
+ document.getElementById("pname").value="";
+ document.getElementById("pqty").value="";
+ document.getElementById("pcost").value="";
+ document.getElementById("psell").value="";
+
+ save();
+}
+
+function issueStock(){
+ let name=document.getElementById("customer").value.trim();
+ let id=Number(document.getElementById("productSelect").value);
+ let qty=Number(document.getElementById("issueQty").value);
+
+ let p=stock.find(x=>x.id===id);
+
+ if(!name || !p || !Number.isInteger(qty) || qty<=0){
+  alert("Enter the customer, product and a valid quantity.");
+  return;
+ }
+
+ if(p.qty<qty){
+  alert("Not enough stock available!");
+  return;
+ }
+
+ let total=qty*p.sell;
+
+ p.qty-=qty;
+
+ if(!customers[name]){
+  customers[name]={debt:0,transactions:[]};
+ }
+
+ customers[name].debt+=total;
+ customers[name].transactions.push({
+  description:qty+" x "+p.name,
+  amount:total,
+  date:new Date().toLocaleString(),
+  type:"Stock taken"
+ });
+
+ history.unshift(new Date().toLocaleString()+
+ " — "+name+" took "+qty+" "+p.name+
+ " ("+money(total)+")");
+
+ document.getElementById("customer").value="";
+ document.getElementById("issueQty").value="";
+
+ save();
+ alert("Stock recorded successfully!");
+}
+
+function makePayment(){
+ let name=document.getElementById("payCustomer").value.trim();
+ let amount=Number(document.getElementById("payAmount").value);
+
+ if(!name || !customers[name] ||
+ !Number.isFinite(amount) || amount<=0){
+  alert("Customer not found or invalid payment.");
+  return;
+ }
+
+ if(amount>customers[name].debt){
+  alert("Payment cannot exceed the outstanding balance.");
+  return;
+ }
+
+ customers[name].debt-=amount;
+
+ customers[name].transactions.push({
+  description:"Payment received",
+  amount:amount,
+  date:new Date().toLocaleString(),
+  type:"Payment"
+ });
+
+ history.unshift(new Date().toLocaleString()+
+ " — "+name+" paid "+money(amount));
+
+ document.getElementById("payCustomer").value="";
+ document.getElementById("payAmount").value="";
+
+ save();
+ alert("Payment recorded successfully!");
+}
+
+function show(page){
+ document.querySelectorAll("main section[id]").forEach(s=>{
+  s.classList.add("hidden");
+ });
+ document.getElementById(page).classList.remove("hidden");
+}
+
+function render(){
+
+ document.getElementById("products").textContent=stock.length;
+
+ document.getElementById("quantity").textContent=
+ stock.reduce((a,p)=>a+p.qty,0);
+
+ document.getElementById("stockValue").textContent=
+ money(stock.reduce((a,p)=>a+p.qty*p.cost,0));
+
+ document.getElementById("owed").textContent=
+ money(Object.values(customers).reduce((a,c)=>a+c.debt,0));
+
+ document.getElementById("stockList").innerHTML=
+ stock.map(p=>`
+ <div class="item">
+ <strong>${escapeHTML(p.name)}</strong>
+ Quantity: ${p.qty}<br>
+ Buying price: ${money(p.cost)}<br>
+ Selling price: ${money(p.sell)}<br>
+ Stock value: ${money(p.qty*p.cost)}
+ <button class="secondary" onclick="addMore(${p.id})">Add More Stock</button>
+ </div>`).join("") || "No products added yet.";
+
+ document.getElementById("productSelect").innerHTML=
+ stock.map(p=>`<option value="${p.id}">${escapeHTML(p.name)} (${p.qty} available)</option>`).join("");
+
+ document.getElementById("customerList").innerHTML=
+ Object.entries(customers).map(([name,c])=>`
+ <div class="item">
+ <strong>${escapeHTML(name)}</strong>
+ Outstanding balance: <b>${money(c.debt)}</b>
+ <br><small>${c.transactions.length} transactions</small>
+ <button class="secondary" onclick="viewCustomer('${encodeURIComponent(name)}')">View Account</button>
+ </div>`).join("") || "No customer accounts yet.";
+
+ document.getElementById("history").innerHTML=
+ history.slice(0,30).map(x=>`
+ <div class="item muted">${escapeHTML(x)}</div>`).join("") || "No transactions yet.";
+}
+
+function addMore(id){
+ let p=stock.find(x=>x.id===id);
+ let qty=Number(prompt("How many "+p.name+" are you adding?"));
+ if(!Number.isInteger(qty)||qty<=0)return;
+ p.qty+=qty;
+ history.unshift(new Date().toLocaleString()+
+ " — Added "+qty+" "+p.name);
+ save();
+}
+
+function viewCustomer(encoded){
+ let name=decodeURIComponent(encoded);
+ let c=customers[name];
+ alert(name+"\nOutstanding: "+money(c.debt)+"\n\n"+
+ c.transactions.map(t=>
+ t.date+"\n"+t.type+": "+t.description+" "+money(t.amount)
+ ).join("\n\n"));
+}
+
+function escapeHTML(value){
+ return String(value).replace(/[&<>"']/g,ch=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ })[ch]);
+}
+
+render();
+
+</script>
+</body>
+  </html>
